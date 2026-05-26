@@ -417,4 +417,3 @@ if st.button("Predict Weather"):
             st.line_chart(
                 hum_df.set_index("Time")
             )
-```

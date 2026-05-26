@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import requests
 import pandas as pd
@@ -13,7 +14,7 @@ from datetime import datetime, timedelta
 
 
 # =========================================
-# PAGE CONFIG
+# PAGE SETTINGS
 # =========================================
 
 st.set_page_config(
@@ -23,7 +24,7 @@ st.set_page_config(
 )
 
 st.title("🌦️ Weather Prediction App")
-st.write("Predict weather, rain, temperature, and humidity")
+st.write("Machine Learning Weather Prediction")
 
 
 # =========================================
@@ -31,161 +32,8 @@ st.write("Predict weather, rain, temperature, and humidity")
 # =========================================
 
 API_KEY = "212e6e4959b9694425e3ac449a567829"
+
 BASE_URL = "https://api.openweathermap.org/data/2.5/"
-
-
-# =========================================
-# GET CURRENT WEATHER
-# =========================================
-
-def get_current_weather(city):
-
-    url = f"{BASE_URL}weather?q={city}&appid={API_KEY}&units=metric"
-
-    response = requests.get(url)
-    data = response.json()
-
-    if data["cod"] != 200:
-        return None
-
-    weather_data = {
-        "current_temp": data["main"]["temp"],
-        "feels_like": data["main"]["feels_like"],
-        "temp_min": data["main"]["temp_min"],
-        "temp_max": data["main"]["temp_max"],
-        "humidity": data["main"]["humidity"],
-        "pressure": data["main"]["pressure"],
-        "description": data["weather"][0]["description"],
-        "country": data["sys"]["country"],
-        "wind_gust_speed": data["wind"]["speed"],
-        "wind_gust_dir": data["wind"].get("deg", 0)
-    }
-
-    return weather_data
-
-
-# =========================================
-# READ HISTORICAL DATA
-# =========================================
-
-def read_historical_data(filename):
-
-    df = pd.read_csv(filename)
-
-    df = df.dropna()
-    df = df.drop_duplicates()
-
-    return df
-
-
-# =========================================
-# PREPARE DATA
-# =========================================
-
-def prepare_data(data):
-
-    le = LabelEncoder()
-
-    data["WindGustDir"] = le.fit_transform(data["WindGustDir"])
-    data["RainTomorrow"] = le.fit_transform(data["RainTomorrow"])
-
-    X = data[
-        [
-            "MinTemp",
-            "MaxTemp",
-            "WindGustDir",
-            "WindGustSpeed",
-            "Humidity",
-            "Pressure",
-            "Temp"
-        ]
-    ]
-
-    y = data["RainTomorrow"]
-
-    return X, y, le
-
-
-# =========================================
-# TRAIN RAIN MODEL
-# =========================================
-
-def train_rain_model(X, y):
-
-    x_train, x_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=0.2,
-        random_state=42
-    )
-
-    model = RandomForestClassifier(
-        n_estimators=100,
-        random_state=42
-    )
-
-    model.fit(x_train, y_train)
-
-    y_pred = model.predict(x_test)
-
-    mse = mean_squared_error(y_test, y_pred)
-
-    return model, mse
-
-
-# =========================================
-# PREPARE REGRESSION DATA
-# =========================================
-
-def prepare_regression_data(data, feature):
-
-    X = []
-    y = []
-
-    for i in range(len(data) - 1):
-
-        X.append(data[feature].iloc[i])
-        y.append(data[feature].iloc[i + 1])
-
-    X = np.array(X).reshape(-1, 1)
-    y = np.array(y)
-
-    return X, y
-
-
-# =========================================
-# TRAIN REGRESSION MODEL
-# =========================================
-
-def train_regression_model(X, y):
-
-    model = RandomForestRegressor(
-        n_estimators=100,
-        random_state=42
-    )
-
-    model.fit(X, y)
-
-    return model
-
-
-# =========================================
-# FUTURE PREDICTIONS
-# =========================================
-
-def predict_future(model, current_value):
-
-    predictions = [current_value]
-
-    for i in range(5):
-
-        next_value = model.predict(
-            np.array([[predictions[-1]]])
-        )
-
-        predictions.append(next_value[0])
-
-    return predictions[1:]
 
 
 # =========================================
@@ -202,15 +50,50 @@ city = st.text_input("Enter City Name")
 if st.button("Predict Weather"):
 
     if city == "":
+
         st.warning("Please enter city name")
 
     else:
 
-        current_weather = get_current_weather(city)
+        # =========================================
+        # API REQUEST
+        # =========================================
 
-        if current_weather is None:
+        url = f"{BASE_URL}weather?q={city}&appid={API_KEY}&units=metric"
+
+        response = requests.get(url)
+
+        data = response.json()
+
+        if data["cod"] != 200:
+
             st.error("City not found")
+
         else:
+
+            # =========================================
+            # WEATHER DATA
+            # =========================================
+
+            current_temp = data["main"]["temp"]
+
+            feels_like = data["main"]["feels_like"]
+
+            temp_min = data["main"]["temp_min"]
+
+            temp_max = data["main"]["temp_max"]
+
+            humidity = data["main"]["humidity"]
+
+            pressure = data["main"]["pressure"]
+
+            description = data["weather"][0]["description"]
+
+            country = data["sys"]["country"]
+
+            wind_speed = data["wind"]["speed"]
+
+            wind_deg = data["wind"].get("deg", 0)
 
             # =========================================
             # LOAD CSV
@@ -218,31 +101,83 @@ if st.button("Predict Weather"):
 
             try:
 
-                historical_data = read_historical_data(
-                    "weather_data.csv"
-                )
+                historical_data = pd.read_csv("weather.csv")
 
             except FileNotFoundError:
 
-                st.error(
-                    "weather_data.csv file not found"
-                )
+                st.error("weather.csv file not found")
 
                 st.stop()
 
             # =========================================
-            # PREPARE DATA
+            # CLEAN DATA
             # =========================================
 
-            X, y, le = prepare_data(historical_data)
+            historical_data = historical_data.dropna()
 
-            rain_model, mse = train_rain_model(X, y)
+            historical_data = historical_data.drop_duplicates()
+
+            # =========================================
+            # LABEL ENCODER
+            # =========================================
+
+            le = LabelEncoder()
+
+            historical_data["WindGustDir"] = le.fit_transform(
+                historical_data["WindGustDir"]
+            )
+
+            historical_data["RainTomorrow"] = le.fit_transform(
+                historical_data["RainTomorrow"]
+            )
+
+            # =========================================
+            # FEATURES
+            # =========================================
+
+            X = historical_data[
+                [
+                    "MinTemp",
+                    "MaxTemp",
+                    "WindGustDir",
+                    "WindGustSpeed",
+                    "Humidity",
+                    "Pressure",
+                    "Temp"
+                ]
+            ]
+
+            y = historical_data["RainTomorrow"]
+
+            # =========================================
+            # TRAIN TEST SPLIT
+            # =========================================
+
+            x_train, x_test, y_train, y_test = train_test_split(
+                X,
+                y,
+                test_size=0.2,
+                random_state=42
+            )
+
+            # =========================================
+            # RAIN MODEL
+            # =========================================
+
+            rain_model = RandomForestClassifier(
+                n_estimators=100,
+                random_state=42
+            )
+
+            rain_model.fit(x_train, y_train)
+
+            y_pred = rain_model.predict(x_test)
+
+            mse = mean_squared_error(y_test, y_pred)
 
             # =========================================
             # WIND DIRECTION
             # =========================================
-
-            wind_deg = current_weather["wind_gust_dir"] % 360
 
             compass_points = [
                 ("N", 0, 22.5),
@@ -261,7 +196,9 @@ if st.button("Predict Weather"):
             for point, start, end in compass_points:
 
                 if start <= wind_deg < end:
+
                     compass_direction = point
+
                     break
 
             if compass_direction in le.classes_:
@@ -275,20 +212,20 @@ if st.button("Predict Weather"):
                 compass_direction_encoded = 0
 
             # =========================================
-            # CURRENT DATA
+            # CURRENT DATAFRAME
             # =========================================
 
-            current_data = {
-                "MinTemp": current_weather["temp_min"],
-                "MaxTemp": current_weather["temp_max"],
-                "WindGustDir": compass_direction_encoded,
-                "WindGustSpeed": current_weather["wind_gust_speed"],
-                "Humidity": current_weather["humidity"],
-                "Pressure": current_weather["pressure"],
-                "Temp": current_weather["current_temp"]
-            }
+            current_df = pd.DataFrame([{
 
-            current_df = pd.DataFrame([current_data])
+                "MinTemp": temp_min,
+                "MaxTemp": temp_max,
+                "WindGustDir": compass_direction_encoded,
+                "WindGustSpeed": wind_speed,
+                "Humidity": humidity,
+                "Pressure": pressure,
+                "Temp": current_temp
+
+            }])
 
             # =========================================
             # RAIN PREDICTION
@@ -299,54 +236,108 @@ if st.button("Predict Weather"):
             )[0]
 
             # =========================================
-            # TEMP MODEL
+            # TEMPERATURE REGRESSION DATA
             # =========================================
 
-            X_temp, y_temp = prepare_regression_data(
-                historical_data,
-                "Temp"
+            X_temp = []
+
+            y_temp = []
+
+            for i in range(len(historical_data) - 1):
+
+                X_temp.append(
+                    historical_data["Temp"].iloc[i]
+                )
+
+                y_temp.append(
+                    historical_data["Temp"].iloc[i + 1]
+                )
+
+            X_temp = np.array(X_temp).reshape(-1, 1)
+
+            y_temp = np.array(y_temp)
+
+            # =========================================
+            # TEMPERATURE MODEL
+            # =========================================
+
+            temp_model = RandomForestRegressor(
+                n_estimators=100,
+                random_state=42
             )
 
-            temp_model = train_regression_model(
-                X_temp,
-                y_temp
-            )
+            temp_model.fit(X_temp, y_temp)
+
+            # =========================================
+            # HUMIDITY REGRESSION DATA
+            # =========================================
+
+            X_hum = []
+
+            y_hum = []
+
+            for i in range(len(historical_data) - 1):
+
+                X_hum.append(
+                    historical_data["Humidity"].iloc[i]
+                )
+
+                y_hum.append(
+                    historical_data["Humidity"].iloc[i + 1]
+                )
+
+            X_hum = np.array(X_hum).reshape(-1, 1)
+
+            y_hum = np.array(y_hum)
 
             # =========================================
             # HUMIDITY MODEL
             # =========================================
 
-            X_hum, y_hum = prepare_regression_data(
-                historical_data,
-                "Humidity"
+            hum_model = RandomForestRegressor(
+                n_estimators=100,
+                random_state=42
             )
 
-            hum_model = train_regression_model(
-                X_hum,
-                y_hum
-            )
+            hum_model.fit(X_hum, y_hum)
 
             # =========================================
-            # FUTURE PREDICTIONS
+            # FUTURE TEMPERATURE
             # =========================================
 
-            future_temp = predict_future(
-                temp_model,
-                current_data["Temp"]
-            )
+            future_temp = [current_temp]
 
-            future_humidity = predict_future(
-                hum_model,
-                current_data["Humidity"]
-            )
+            for i in range(5):
+
+                next_value = temp_model.predict(
+                    np.array([[future_temp[-1]]])
+                )
+
+                future_temp.append(next_value[0])
+
+            future_temp = future_temp[1:]
+
+            # =========================================
+            # FUTURE HUMIDITY
+            # =========================================
+
+            future_humidity = [humidity]
+
+            for i in range(5):
+
+                next_value = hum_model.predict(
+                    np.array([[future_humidity[-1]]])
+                )
+
+                future_humidity.append(next_value[0])
+
+            future_humidity = future_humidity[1:]
 
             # =========================================
             # FUTURE TIMES
             # =========================================
 
-            timezone = pytz.timezone(
-                "Asia/Kolkata"
-            )
+            timezone = pytz.timezone("Asia/Kolkata")
 
             now = datetime.now(timezone)
 
@@ -354,87 +345,53 @@ if st.button("Predict Weather"):
 
             for i in range(1, 6):
 
-                future_time = now + timedelta(
-                    hours=i
-                )
+                future_time = now + timedelta(hours=i)
 
                 future_times.append(
-                    future_time.strftime(
-                        "%I:%M %p"
-                    )
+                    future_time.strftime("%I:%M %p")
                 )
 
             # =========================================
             # DISPLAY RESULTS
             # =========================================
 
-            st.subheader(
-                "📍 Current Weather"
-            )
+            st.subheader("📍 Current Weather")
 
-            st.write(
-                f"### {city}, "
-                f"{current_weather['country']}"
-            )
+            st.write(f"### {city}, {country}")
 
-            st.write(
-                f"🌡️ Current Temperature: "
-                f"{current_weather['current_temp']} °C"
-            )
+            st.write(f"🌡️ Current Temperature: {current_temp} °C")
 
-            st.write(
-                f"🤗 Feels Like: "
-                f"{current_weather['feels_like']} °C"
-            )
+            st.write(f"🤗 Feels Like: {feels_like} °C")
 
-            st.write(
-                f"📉 Min Temperature: "
-                f"{current_weather['temp_min']} °C"
-            )
+            st.write(f"📉 Min Temperature: {temp_min} °C")
 
-            st.write(
-                f"📈 Max Temperature: "
-                f"{current_weather['temp_max']} °C"
-            )
+            st.write(f"📈 Max Temperature: {temp_max} °C")
 
-            st.write(
-                f"💧 Humidity: "
-                f"{current_weather['humidity']}%"
-            )
+            st.write(f"💧 Humidity: {humidity}%")
 
-            st.write(
-                f"🌥️ Weather: "
-                f"{current_weather['description']}"
-            )
+            st.write(f"🌥️ Weather: {description}")
 
             if rain_prediction == 1:
 
-                st.success(
-                    "☔ Rain Prediction: Yes"
-                )
+                st.success("☔ Rain Prediction: Yes")
 
             else:
 
-                st.info(
-                    "☀️ Rain Prediction: No"
-                )
+                st.info("☀️ Rain Prediction: No")
 
-            st.write(
-                f"📊 Model MSE: "
-                f"{mse:.4f}"
-            )
+            st.write(f"📊 Model MSE: {mse:.4f}")
 
             # =========================================
             # TEMPERATURE TABLE
             # =========================================
 
-            st.subheader(
-                "🌡️ Future Temperature Prediction"
-            )
+            st.subheader("🌡️ Future Temperature Prediction")
 
             temp_df = pd.DataFrame({
+
                 "Time": future_times,
                 "Temperature": future_temp
+
             })
 
             st.table(temp_df)
@@ -447,13 +404,13 @@ if st.button("Predict Weather"):
             # HUMIDITY TABLE
             # =========================================
 
-            st.subheader(
-                "💧 Future Humidity Prediction"
-            )
+            st.subheader("💧 Future Humidity Prediction")
 
             hum_df = pd.DataFrame({
+
                 "Time": future_times,
                 "Humidity": future_humidity
+
             })
 
             st.table(hum_df)
@@ -461,3 +418,4 @@ if st.button("Predict Weather"):
             st.line_chart(
                 hum_df.set_index("Time")
             )
+```
